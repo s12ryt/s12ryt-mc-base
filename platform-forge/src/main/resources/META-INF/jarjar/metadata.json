@@ -1,0 +1,16 @@
+{
+  "jars": [
+    {
+      "identifier": {
+        "group": "dev.s12ryt",
+        "artifact": "platform-core"
+      },
+      "version": {
+        "range": "[0.1.0,)",
+        "strictVersion": "0.1.0"
+      },
+      "path": "META-INF/jarjar/s12ryt-mc-base-0.1.0.jar",
+      "isObfuscated": false
+    }
+  ]
+}

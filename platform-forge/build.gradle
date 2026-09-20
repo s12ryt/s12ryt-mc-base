@@ -1,0 +1,50 @@
+plugins {
+    id 'net.minecraftforge.gradle' version '6.0.54'
+    id 'java-library'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+minecraft {
+    mappings channel: 'official', version: '1.21.4'
+}
+
+// platform-forge 是獨立嵌套構建（ForgeGradle 6 拒絕 Gradle 9，主構建不 include 本專案）。
+// 構建順序：先在根目錄跑 gradlew build（產出 platform-core shade jar），
+// 再進入本目錄跑 gradlew build（compileOnly 以 files() 指向該 shade jar）。
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.21.4-54.1.18'
+
+    // platform-core shade jar 已含 platform-api + platform-core 全部類別與內嵌依賴
+    compileOnly files(new File(rootDir.parentFile, 'platform-core/build/libs/s12ryt-mc-base-0.1.0.jar'))
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+// ── JarJar 嵌入 platform-core shade jar ──────────────────────────────
+// Forge JarJar 機制：把 shade jar 放進 META-INF/jarjar/，
+// 並提供 META-INF/jarjar/metadata.json（src/main/resources 已備妥）。
+// 讓 Forge 端 mod jar 自帶完整平台核心（Javalin/SQLite/Gson/platform-api/core）。
+def shadeJar = new File(rootDir.parentFile, 'platform-core/build/libs/s12ryt-mc-base-0.1.0.jar')
+
+tasks.register('embedShadeJar', Copy) {
+    description = 'Embed platform-core shade jar into META-INF/jarjar/ (Forge JarJar)'
+    dependsOn tasks.named('processResources')
+    from(shadeJar)
+    into(layout.buildDirectory.dir('resources/main/META-INF/jarjar'))
+    doFirst {
+        if (!shadeJar.exists()) {
+            throw new GradleException("找不到 platform-core shade jar：${shadeJar}。請先在根目錄執行 gradlew build。")
+        }
+    }
+}
+
+tasks.named('jar') {
+    dependsOn tasks.named('embedShadeJar')
+}
