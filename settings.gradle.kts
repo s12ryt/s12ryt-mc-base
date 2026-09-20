@@ -6,6 +6,10 @@ pluginManagement {
         maven("https://maven.fabricmc.net/") {
             name = "fabricmc"
         }
+        // NeoForge ModDevGradle plugin 與相關構建依賴
+        maven("https://maven.neoforged.net/releases") {
+            name = "neoforged"
+        }
     }
 }
 
@@ -15,3 +19,4 @@ include("platform-api")
 include("platform-core")
 include("apps:hello-app")
 include("platform-fabric")
+include("platform-neoforge")

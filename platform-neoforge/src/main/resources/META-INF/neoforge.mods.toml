@@ -1,0 +1,27 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "All Rights Reserved"
+
+[[mods]]
+modId = "s12ryt-mc-base"
+version = "0.1.0"
+displayName = "s12ryt MC Platform"
+description = '''
+MC 多應用平台（NeoForge 版）——類 Docker 容器概念，
+讓你把各種小專案（App）動態放進 Minecraft 伺服器裡運行。
+零遊戲內指令，所有管理操作透過 Web 控制台完成。
+'''
+
+[[dependencies.s12ryt-mc-base]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1.0,)"
+ordering = "NONE"
+side = "SERVER"
+
+[[dependencies.s12ryt-mc-base]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.4]"
+ordering = "NONE"
+side = "SERVER"
