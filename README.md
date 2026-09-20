@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/s12ryt/s12ryt-mc-base/actions/workflows/ci.yml/badge.svg)](https://github.com/s12ryt/s12ryt-mc-base/actions/workflows/ci.yml)
 
-**簡體中文** | [English](README.en.md) | [繁體中文（主版本）](README.md)
+[简体中文](README.zh-CN.md) | [English](README.en.md) | **繁體中文（主版本）**
 
 ---
 
