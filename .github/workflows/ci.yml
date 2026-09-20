@@ -120,9 +120,16 @@ jobs:
       - name: Prepare server directory
         run: |
           mkdir -p run/plugins
+          # 平台 plugin jar 放 plugins/（Bukkit 載入）
           cp platform-core/build/libs/s12ryt-mc-base-*.jar run/plugins/
-          cp apps/hello-app/build/libs/hello-app-*.jar run/plugins/
-          ls -lh run/plugins/
+          # hello-app 是平台的 App jar（不是 Bukkit plugin），
+          # 必須放在平台資料目錄的 apps/ 下：plugins/s12ryt-mc-base/apps/
+          # （PlatformBootstrap 以 getDataFolder().resolve("apps") 作為掃描目錄，
+          #  且載入發生在 plugin onEnable，故須在 server 首次啟動前就位）
+          mkdir -p run/plugins/s12ryt-mc-base/apps
+          cp apps/hello-app/build/libs/hello-app-*.jar run/plugins/s12ryt-mc-base/apps/
+          echo "=== plugins/ ==="; ls -lh run/plugins/
+          echo "=== plugins/s12ryt-mc-base/apps/ ==="; ls -lh run/plugins/s12ryt-mc-base/apps/
           echo "eula=true" > run/eula.txt
           cat > run/server.properties <<'EOF'
           online-mode=false
