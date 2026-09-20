@@ -103,10 +103,18 @@ jobs:
 
       - name: Download Paper 1.21.4
         run: |
-          BUILD=$(curl -s https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds | jq -r '.builds[-1].build')
-          echo "Paper 1.21.4 build: $BUILD"
-          curl -sL -o paper.jar \
-            "https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds/${BUILD}/downloads/paper-1.21.4-${BUILD}.jar"
+          # PaperMC v2 API 已 sunset，改用 v3 API（fill.papermc.io）
+          JSON=$(curl -sL https://fill.papermc.io/v3/projects/paper/versions/1.21.4/builds/latest)
+          URL=$(echo "$JSON" | jq -r '.downloads["server:default"].url')
+          SHA256=$(echo "$JSON" | jq -r '.downloads["server:default"].checksums.sha256')
+          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
+            echo "FAIL: no download URL from v3 API"
+            echo "$JSON" | head -c 500
+            exit 1
+          fi
+          echo "Downloading: $URL"
+          curl -sL -o paper.jar "$URL"
+          echo "$SHA256  paper.jar" | sha256sum -c -
           ls -lh paper.jar
 
       - name: Prepare server directory
