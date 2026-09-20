@@ -1,0 +1,5 @@
+# S12ryt MC 平台配置
+
+web:
+  # Web 控制台埠號
+  port: 8080

@@ -1,0 +1,7 @@
+name: s12ryt-mc-base
+version: 0.1.0
+main: dev.s12ryt.mcapp.core.S12rytPlugin
+api-version: '1.21'
+author: s12ryt
+description: MC 多應用平台（plugin.jar + server.jar 形式的容器平台）
+# 不含 commands 區段——零遊戲指令保證
