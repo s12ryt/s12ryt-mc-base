@@ -98,9 +98,17 @@ tasks.shadowJar {
     // 合併 META-INF/services（JDBC driver、Javalin 等 ServiceLoader）
     mergeServiceFiles()
 
-    // 設定 duplicatesStrategy 為 INCLUDE，確保 transformer 能處理所有重複項
-    // （ServiceFileTransformer 和 KotlinModuleMetadataTransformer 需要看到所有重複檔案）
-    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    // 重複條目一律排除（保留第一次出現者）。
+    // Paper 的 PluginRemapper 讀取 jar 時遇到 duplicate entries 會直接失敗
+    // （「Failed to remap plugin jar」），因此不可用 INCLUDE。
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    // 排除多依賴合併時大量重複的 metadata（不影響運行）
+    exclude("META-INF/LICENSE", "META-INF/LICENSE.txt", "META-INF/LICENSE.md")
+    exclude("META-INF/NOTICE", "META-INF/NOTICE.txt", "META-INF/NOTICE.md")
+    exclude("META-INF/DEPENDENCIES", "META-INF/INDEX.LIST")
+    exclude("META-INF/versions/*/module-info.class", "META-INF/versions/9/module-info.class")
+    exclude("META-INF/*.version", "META-INF/maven/*/pom.xml", "META-INF/maven/*/pom.properties")
 
     // 排除不必要的簽章檔
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
