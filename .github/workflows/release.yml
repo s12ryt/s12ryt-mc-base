@@ -1,0 +1,140 @@
+name: Release
+
+on:
+  # 推送 v* tag 時觸發正式 Release（如 git tag v0.1.0 && git push origin v0.1.0）
+  push:
+    tags:
+      - 'v*'
+  # 手動觸發（Actions 頁面按鈕；正式 tag 發布請用 tag 觸發）
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Node.js (web console build)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install web console dependencies
+        run: npm ci
+        working-directory: platform-core/web-console
+
+      - name: Build & run all unit tests
+        run: ./gradlew build --no-daemon --stacktrace
+
+      - name: Verify plugin jar contents
+        run: |
+          echo "=== Verifying shade jar contents ==="
+          JAR=$(ls platform-core/build/libs/s12ryt-mc-base-*.jar | head -n 1)
+          echo "Jar: $JAR"
+          for entry in "plugin.yml" "config.yml" "web-console/index.html" "io/javalin/Javalin.class" "org/sqlite/SQLiteJDBCLoader.class" "com/google/gson/Gson.class" "dev/s12ryt/mcapp/core/S12rytPlugin.class" "dev/s12ryt/mcapp/api/App.class"; do
+            jar tf "$JAR" | grep -qx "$entry" || { echo "MISSING in jar: $entry"; exit 1; }
+            echo "OK: $entry"
+          done
+          echo "=== plugin.yml must NOT contain commands section ==="
+          if unzip -p "$JAR" plugin.yml | grep -qE '^commands:'; then
+            echo "FAIL: plugin.yml contains commands section (zero-command policy violated)"
+            exit 1
+          fi
+          echo "OK: zero commands"
+
+      # ─── 計算 Release 版本與名稱 ───
+      # tag 觸發：用 tag 名（去掉 v 前綴）對照 jar 版本；手動觸發：從 gradle.properties/build 讀版本
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            echo "release_tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            # 手動觸發：從根 build.gradle.kts 抓版本 + 短 SHA 當 prerelease
+            VERSION=$(grep 'version = "' build.gradle.kts | head -n1 | sed 's/.*version = "\(.*\)".*/\1/')
+            if [ -z "$VERSION" ]; then
+              VERSION=$(./gradlew properties --no-daemon 2>/dev/null | grep '^version:' | awk '{print $2}')
+            fi
+            SHA=$(git rev-parse --short HEAD)
+            echo "release_tag=v${VERSION}-${SHA}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Determined version: ${VERSION}, tag: $(grep release_tag "$GITHUB_OUTPUT" | cut -d= -f2)"
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p release-artifacts
+          cp platform-core/build/libs/s12ryt-mc-base-*.jar release-artifacts/
+          cp apps/hello-app/build/libs/hello-app-*.jar release-artifacts/
+          # 產出校驗和供使用者驗證
+          cd release-artifacts
+          sha256sum *.jar > SHA256SUMS.txt
+          ls -lh
+          cat SHA256SUMS.txt
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          {
+            echo "### 下載檔案"
+            echo ""
+            echo "| 檔案 | 用途 |"
+            echo "|------|------|"
+            echo "| \`s12ryt-mc-base-*.jar\` | **平台 plugin**（放進伺服器 \`plugins/\` 目錄） |"
+            echo "| \`hello-app-*.jar\` | 示範 App（放進 \`plugins/s12ryt-mc-base/apps/\` 目錄） |"
+            echo "| \`SHA256SUMS.txt\` | 校驗和（\`sha256sum -c SHA256SUMS.txt\`） |"
+            echo ""
+            echo "### 安裝"
+            echo ""
+            echo "1. 把 \`s12ryt-mc-base-*.jar\` 放到 Paper 1.21.4 伺服器的 \`plugins/\` 目錄"
+            echo "2. **首次啟動前**，把 \`hello-app-*.jar\` 放到 \`plugins/s12ryt-mc-base/apps/\`（目錄需自行建立，或先啟動一次讓平台自動生成後再放入並重啟）"
+            echo "3. 啟動伺服器，控制台會印出首次生成的管理員密碼"
+            echo "4. 開瀏覽器訪問 \`http://<伺服器IP>:8080/console/\` 登入"
+            echo ""
+            echo "### 完整說明"
+            echo ""
+            echo "詳見 [README](https://github.com/${GITHUB_REPOSITORY}#readme)"
+          } > release_notes.md
+          {
+            echo 'notes<<EOF'
+            cat release_notes.md
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.release_tag }}
+          name: s12ryt-mc-base ${{ steps.version.outputs.release_tag }}
+          body: ${{ steps.notes.outputs.notes }}
+          files: |
+            release-artifacts/*.jar
+            release-artifacts/SHA256SUMS.txt
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+      - name: Upload build artifacts (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-jars
+          path: release-artifacts/
+          retention-days: 14
