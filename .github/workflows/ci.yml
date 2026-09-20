@@ -1,0 +1,185 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Node.js (web console build)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build & run all unit tests
+        run: ./gradlew build --no-daemon --stacktrace
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            **/build/test-results/test/*.xml
+            **/build/reports/tests/test/**
+          retention-days: 7
+
+      - name: Verify plugin jar contents
+        run: |
+          echo "=== Verifying shade jar contents ==="
+          JAR=$(ls platform-core/build/libs/s12ryt-mc-base-*.jar | head -n 1)
+          echo "Jar: $JAR"
+          for entry in "plugin.yml" "config.yml" "web-console/index.html" "io/javalin/Javalin.class" "org/sqlite/SQLiteJDBCLoader.class" "com/google/gson/Gson.class" "dev/s12ryt/mcapp/core/S12rytPlugin.class" "dev/s12ryt/mcapp/api/App.class"; do
+            jar tf "$JAR" | grep -qx "$entry" || { echo "MISSING in jar: $entry"; exit 1; }
+            echo "OK: $entry"
+          done
+          echo "=== plugin.yml must NOT contain commands section ==="
+          if unzip -p "$JAR" plugin.yml | grep -qE '^commands:'; then
+            echo "FAIL: plugin.yml contains commands section (zero-command policy violated)"
+            exit 1
+          fi
+          echo "OK: zero commands"
+
+      - name: Upload plugin jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-jars
+          path: |
+            platform-core/build/libs/*.jar
+            apps/hello-app/build/libs/*.jar
+          retention-days: 14
+
+  paper-smoke-test:
+    name: Paper 1.21.4 Smoke Test
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Node.js (web console build)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build plugin
+        run: ./gradlew build --no-daemon
+
+      - name: Download Paper 1.21.4
+        run: |
+          BUILD=$(curl -s https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds | jq -r '.builds[-1].build')
+          echo "Paper 1.21.4 build: $BUILD"
+          curl -sL -o paper.jar \
+            "https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds/${BUILD}/downloads/paper-1.21.4-${BUILD}.jar"
+          ls -lh paper.jar
+
+      - name: Prepare server directory
+        run: |
+          mkdir -p run/plugins
+          cp platform-core/build/libs/s12ryt-mc-base-*.jar run/plugins/
+          cp apps/hello-app/build/libs/hello-app-*.jar run/plugins/
+          ls -lh run/plugins/
+          echo "eula=true" > run/eula.txt
+          cat > run/server.properties <<'EOF'
+          online-mode=false
+          level-type=flat
+          view-distance=2
+          simulation-distance=2
+          spawn-protection=0
+          motd=CI Smoke Test
+          max-players=0
+          EOF
+
+      - name: Start Paper server & verify plugin
+        run: |
+          cd run
+          timeout 300 java -Xms512M -Xmx1024M -jar ../paper.jar nogui > server.log 2>&1 &
+          SERVER_PID=$!
+          STARTED=false
+          for i in $(seq 1 150); do
+            if grep -q "Done (" server.log 2>/dev/null; then
+              STARTED=true
+              break
+            fi
+            if ! kill -0 $SERVER_PID 2>/dev/null; then
+              echo "SERVER PROCESS DIED"
+              break
+            fi
+            sleep 2
+          done
+          if [ "$STARTED" != "true" ]; then
+            echo "=== SERVER FAILED TO START ==="
+            tail -100 server.log
+            exit 1
+          fi
+          echo "=== Server started ==="
+          grep "Done (" server.log
+
+      - name: Verify plugin loaded & zero commands & web API
+        run: |
+          cd run
+          echo "=== Plugin enabled ==="
+          grep -i "s12ryt-mc-base" server.log || { echo "FAIL: plugin not logged"; tail -50 server.log; exit 1; }
+          echo "=== hello-app loaded ==="
+          grep "App started: hello-app" server.log || { echo "FAIL: hello-app not started"; tail -50 server.log; exit 1; }
+          echo "=== No command registration errors ==="
+          if grep -qi "Error occurred while enabling" server.log; then
+            echo "FAIL: plugin enable error"
+            grep -A 5 -i "Error occurred" server.log
+            exit 1
+          fi
+          echo "=== Web API health check ==="
+          HEALTH=$(curl -s --max-time 10 http://localhost:8080/api/health)
+          echo "Health response: $HEALTH"
+          echo "$HEALTH" | grep -q '"status"' || { echo "FAIL: web API not responding"; tail -50 server.log; exit 1; }
+          echo "=== Web console page ==="
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://localhost:8080/console/)
+          echo "Console HTTP status: $CODE"
+          [ "$CODE" = "200" ] || { echo "FAIL: web console not serving"; tail -50 server.log; exit 1; }
+          echo "=== App route dispatch (hello-app /ping) ==="
+          PING=$(curl -s --max-time 10 http://localhost:8080/apps/hello-app/ping)
+          echo "Ping response: $PING"
+          echo "$PING" | grep -q "pong" || { echo "FAIL: app route not dispatching"; tail -50 server.log; exit 1; }
+          echo "=== ALL SMOKE TESTS PASSED ==="
+
+      - name: Graceful stop server
+        if: always()
+        run: |
+          pkill -f "paper.jar" 2>/dev/null || true
+          sleep 5
+
+      - name: Upload server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paper-server-log
+          path: run/server.log
+          retention-days: 7
