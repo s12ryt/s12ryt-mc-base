@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "s12ryt-mc-base",
+  "version": "0.1.0",
+  "name": "s12ryt MC Platform",
+  "description": "MC multi-application platform (App container + Web console). Zero in-game commands.",
+  "authors": [
+    "s12ryt"
+  ],
+  "license": "MIT",
+  "environment": "server",
+  "entrypoints": {
+    "server": [
+      "dev.s12ryt.mcapp.fabric.S12rytFabricMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "fabric-api": "*",
+    "minecraft": "~1.21.4",
+    "java": ">=21"
+  }
+}

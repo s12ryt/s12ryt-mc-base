@@ -1,3 +1,8 @@
+import org.gradle.api.attributes.Bundling
+import org.gradle.api.attributes.Category
+import org.gradle.api.attributes.LibraryElements
+import org.gradle.api.attributes.Usage
+
 plugins {
     `java-library`
     id("com.gradleup.shadow") version "9.6.1"
@@ -120,4 +125,23 @@ tasks.shadowJar {
 // 讓 build 最終產出 shadowJar（而非普通 jar）
 tasks.build {
     dependsOn(tasks.shadowJar)
+}
+
+// ─── Shade artifact 供跨模組消費（platform-fabric Jar-in-Jar） ───
+// 暴露一個可解析的 configuration，攜帶 shadowJar 產物。
+// Fabric Loom 的 include() 需要 module component（帶 group/name/version 與
+// capabilities），純 files() 不被接受；用 outgoing variants 即可滿足。
+val shadeBundle = configurations.consumable("shadeBundle") {
+    description = "Consumable configuration carrying the shaded fat jar (s12ryt-mc-base)"
+    // 標記為可被 Loom include 消費（module component + capabilities 由 attributes 補足）
+    attributes {
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category.LIBRARY))
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage.JAVA_RUNTIME))
+        attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements.JAR))
+        attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.SHADOWED))
+    }
+}
+
+artifacts {
+    add("shadeBundle", tasks.shadowJar)
 }
