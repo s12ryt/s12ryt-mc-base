@@ -6,7 +6,14 @@
 
 ---
 
-以 **Paper 1.21.4 plugin.jar** 形式存在的 **MC 多應用平台**——類 Docker 容器概念，讓你把各種小專案（App）動態放進 Minecraft 伺服器裡運行，每個 App 都有自己獨立的 Web 路由、SQLite 資料庫、日誌與排程器。
+以 **MC 多應用平台**形式存在的**類 Docker 容器系統**——支援 **Paper / Fabric / NeoForge / Forge**（均為 Minecraft 1.21.4），讓你把各種小專案（App）動態放進 Minecraft 伺服器裡運行，每個 App 都有自己獨立的 Web 路由、SQLite 資料庫、日誌與排程器。
+
+| 支援平台 | 版本 | 安裝位置 |
+|---------|------|---------|
+| **Paper** | 1.21.4 | `plugins/` |
+| **Fabric** | 1.21.4（需 fabric-api） | `mods/` |
+| **NeoForge** | 21.1.x | `mods/` |
+| **Forge** | 54.x（1.21.4） | `mods/` |
 
 > 🎮 **零遊戲內指令**：所有管理操作都透過 Web 控制台完成，不會汙染遊戲內的指令空間。
 
@@ -23,11 +30,14 @@
 
 ```
 s12ryt-mc-base/
-├── platform-api/      # App 開發者 API（唯一需要依賴的模組）
-├── platform-core/     # 平台核心 + Web 控制台（shade 打包成 plugin.jar）
-│   └── web-console/   # Vue 3 + Vite 前端
-├── apps/hello-app/    # 示範 App（展示全部平台能力）
-└── .github/workflows/ # CI：建置 + 263 單元測試 + Paper 煙霧測試
+├── platform-api/        # App 開發者 API（唯一需要依賴的模組）
+├── platform-core/       # 平台核心 + Web 控制台（shade 打包，各平台共用）
+│   └── web-console/     # Vue 3 + Vite 前端
+├── platform-fabric/     # Fabric 入口（Loom，Jar-in-Jar 嵌入平台核心）
+├── platform-neoforge/   # NeoForge 入口（ModDevGradle，JarJar 嵌入平台核心）
+├── platform-forge/      # Forge 入口（ForgeGradle 6 嵌套構建，JarJar 嵌入）
+├── apps/hello-app/      # 示範 App（展示全部平台能力）
+└── .github/workflows/   # CI：建置 + 274 單元測試 + Paper 煙霧測試
 ```
 
 ## 🚀 快速開始
@@ -136,26 +146,32 @@ jar 丟進 `plugins/s12ryt-mc-base/apps/`，App 路由掛載在 `http://伺服�
 ```bash
 ./gradlew build
 # 產出：
-#   platform-core/build/libs/s12ryt-mc-base-0.1.0.jar  ← plugin.jar（shade）
-#   apps/hello-app/build/libs/hello-app-0.1.0.jar      ← 示範 App
+#   platform-core/build/libs/s12ryt-mc-base-0.1.0.jar    ← Paper plugin.jar（shade）
+#   platform-fabric/build/libs/platform-fabric-0.1.0.jar  ← Fabric mod
+#   platform-neoforge/build/libs/platform-neoforge-0.1.0.jar ← NeoForge mod
+#   apps/hello-app/build/libs/hello-app-0.1.0.jar         ← 示範 App
+
+# Forge 版需單獨構建（ForgeGradle 6 不支援 Gradle 9，為嵌套獨立構建）：
+cd platform-forge && ./gradlew build
+# 產出：platform-forge/build/libs/platform-forge.jar ← Forge mod
 ```
 
 ## ✅ 品質保證
 
-- **263 個單元測試**全綠（JUnit 5，涵蓋認證、容器、路由、存儲、日誌、排程、Web API）
+- **274 個單元測試**全綠（JUnit 5，涵蓋認證、容器、路由、存儲、日誌、排程、Web API、ServerAdapter SPI）
 - **CI 全自動煙霧測試**：GitHub Actions 真實下載 Paper 1.21.4 啟動伺服器，驗證 plugin 載入、App 啟動、Web API 回應
 
 ## 📄 技術棧
 
 | 層 | 技術 |
 |----|------|
-| 基底 | Paper 1.21.4 / Java 21 |
+| 平台 | Paper 1.21.4 / Fabric 1.21.4 / NeoForge 21.1.x / Forge 54.x / Java 21 |
 | Web 後端 | Javalin 6.6.0 |
 | 前端 | Vue 3 + Vite |
 | 存儲 | SQLite（sqlite-jdbc 3.53.2.1） |
 | JSON | Gson 2.11.0 |
 | 測試 | JUnit 5 |
-| 建置 | Gradle Kotlin DSL + Shadow |
+| 建置 | Gradle Kotlin DSL + Shadow / Loom / ModDevGradle / ForgeGradle 6 |
 
 ## 📄 授權
 

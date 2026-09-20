@@ -6,7 +6,7 @@
 
 ---
 
-A **Minecraft multi-application platform** shipped as a **Paper 1.21.4 plugin.jar** — think Docker containers for your Minecraft server: dynamically load small projects ("Apps") into a running server, where each App gets its own web routes, SQLite database, logger, and scheduler.
+A **Minecraft multi-application platform** shipped as a **server-side plugin/mod jar** — think Docker containers for your Minecraft server: dynamically load small projects ("Apps") into a running server, where each App gets its own web routes, SQLite database, logger, and scheduler. **Supports Paper / Fabric / NeoForge / Forge (all Minecraft 1.21.4)**.
 
 > 🎮 **Zero in-game commands**: All management is done through the web console — no `/commands` polluting your server.
 
@@ -15,19 +15,31 @@ A **Minecraft multi-application platform** shipped as a **Paper 1.21.4 plugin.ja
 - 🐳 **Container-style App management**: scans the `apps/` directory, isolates each App with its own `URLClassLoader`, supports hot load / unload / reload at runtime
 - 🌐 **Embedded web console**: Javalin 6 + Vue 3, admin password login (a strong random password is generated on first launch)
 - 📦 **Per-App isolated resources**: dedicated SQLite file (`apps/{id}/data.db`), dedicated log stream (ring buffer + file), dedicated config file
-- ⏰ **Full App capabilities**: custom web routes, scheduled tasks, async execution, main-thread dispatch, access to the Bukkit API (`org.bukkit.Server`)
+- ⏰ **Full App capabilities**: custom web routes, scheduled tasks, async execution, main-thread dispatch, access to the server API (`AppContext.getServer()` returns `Object` — cast with `instanceof` per platform)
 - 🛡️ **Fault isolation**: one App crashing never takes down the platform or other Apps
 - 🔐 **PBKDF2 password storage** + Bearer token auth with 24-hour expiration
+
+## 🖥️ Supported Platforms
+
+| Platform | Version | Install location | Notes |
+|----------|---------|------------------|-------|
+| Paper | 1.21.4 | `plugins/` | Recommended; smoke-tested in CI |
+| Fabric | 1.21.4 | `mods/` | Requires [fabric-api](https://modrinth.com/mod/fabric-api) |
+| NeoForge | 21.1.x | `mods/` | |
+| Forge | 54.x (1.21.4) | `mods/` | |
 
 ## 📂 Repository Layout
 
 ```
 s12ryt-mc-base/
-├── platform-api/      # App developer API (the only module Apps depend on)
-├── platform-core/     # Platform core + web console (shaded into plugin.jar)
-│   └── web-console/   # Vue 3 + Vite frontend
-├── apps/hello-app/    # Demo App (showcases all platform capabilities)
-└── .github/workflows/ # CI: build + 263 unit tests + Paper smoke test
+├── platform-api/        # App developer API (the only module Apps depend on)
+├── platform-core/       # Platform core + web console (shaded into plugin.jar)
+│   └── web-console/     # Vue 3 + Vite frontend
+├── platform-fabric/     # Fabric entry (Loom; nested in main build)
+├── platform-neoforge/   # NeoForge entry (ModDevGradle)
+├── platform-forge/      # Forge entry (ForgeGradle 6; SEPARATE nested build with its own Gradle 8 wrapper)
+├── apps/hello-app/      # Demo App (showcases all platform capabilities)
+└── .github/workflows/   # CI: build + 274 unit tests + Paper smoke test
 ```
 
 ## 🚀 Quick Start
@@ -136,26 +148,32 @@ Requirements: JDK 21+, Node.js 18+ (for the frontend build)
 ```bash
 ./gradlew build
 # Output:
-#   platform-core/build/libs/s12ryt-mc-base-0.1.0.jar  ← plugin.jar (shaded)
-#   apps/hello-app/build/libs/hello-app-0.1.0.jar      ← demo App
+#   platform-core/build/libs/s12ryt-mc-base-0.1.0.jar     ← Paper plugin.jar (shaded)
+#   platform-fabric/build/libs/platform-fabric-0.1.0.jar  ← Fabric mod
+#   platform-neoforge/build/libs/platform-neoforge-0.1.0.jar ← NeoForge mod
+#   apps/hello-app/build/libs/hello-app-0.1.0.jar         ← demo App
+
+# Forge uses a SEPARATE nested build (ForgeGradle 6 doesn't support Gradle 9):
+cd platform-forge && ./gradlew build
+# Output: platform-forge/build/libs/platform-forge.jar ← Forge mod
 ```
 
 ## ✅ Quality
 
-- **263 unit tests**, all green (JUnit 5 — covering auth, container, routing, storage, logging, scheduling, web API)
+- **274 unit tests**, all green (JUnit 5 — covering auth, container, routing, storage, logging, scheduling, ServerAdapter SPI, web API)
 - **Fully automated CI smoke test**: GitHub Actions downloads real Paper 1.21.4, boots a server, and verifies plugin load, App startup, and web API responses
 
 ## 📄 Tech Stack
 
 | Layer | Technology |
 |-------|------------|
-| Base | Paper 1.21.4 / Java 21 |
+| Base | Paper / Fabric / NeoForge / Forge (Minecraft 1.21.4) / Java 21 |
 | Web backend | Javalin 6.6.0 |
 | Frontend | Vue 3 + Vite |
 | Storage | SQLite (sqlite-jdbc 3.53.2.1) |
 | JSON | Gson 2.11.0 |
 | Testing | JUnit 5 |
-| Build | Gradle Kotlin DSL + Shadow |
+| Build | Gradle Kotlin DSL + Shadow + Loom + ModDevGradle + ForgeGradle 6 |
 
 ## 📄 License
 

@@ -41,6 +41,12 @@ jobs:
       - name: Build & run all unit tests
         run: ./gradlew build --no-daemon --stacktrace
 
+      - name: Build platform-forge (nested Gradle 8 build)
+        run: |
+          # ForgeGradle 6 不支援 Gradle 9，platform-forge 是嵌套獨立構建（Gradle 8.12 wrapper）
+          cd platform-forge
+          ./gradlew build --no-daemon --stacktrace
+
       - name: Verify plugin jar contents
         run: |
           echo "=== Verifying shade jar contents ==="
@@ -82,7 +88,15 @@ jobs:
       - name: Collect artifacts
         run: |
           mkdir -p release-artifacts
+          # Paper 版（shade jar，含 web-console 與全部依賴）
           cp platform-core/build/libs/s12ryt-mc-base-*.jar release-artifacts/
+          # Fabric 版（Loom remapJar 產出，Jar-in-Jar 嵌入 shade jar）
+          cp platform-fabric/build/libs/platform-fabric-*.jar release-artifacts/
+          # NeoForge 版（ModDevGradle jarJar 產出）
+          cp platform-neoforge/build/libs/platform-neoforge-*.jar release-artifacts/
+          # Forge 版（FG6 產出，無版本後綴 → 改名補上）
+          cp platform-forge/build/libs/platform-forge.jar release-artifacts/platform-forge-${VERSION}.jar
+          # 示範 App
           cp apps/hello-app/build/libs/hello-app-*.jar release-artifacts/
           # 產出校驗和供使用者驗證
           cd release-artifacts
@@ -92,20 +106,25 @@ jobs:
 
       - name: Generate release notes
         id: notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           {
             echo "### 下載檔案"
             echo ""
-            echo "| 檔案 | 用途 |"
-            echo "|------|------|"
-            echo "| \`s12ryt-mc-base-*.jar\` | **平台 plugin**（放進伺服器 \`plugins/\` 目錄） |"
-            echo "| \`hello-app-*.jar\` | 示範 App（放進 \`plugins/s12ryt-mc-base/apps/\` 目錄） |"
-            echo "| \`SHA256SUMS.txt\` | 校驗和（\`sha256sum -c SHA256SUMS.txt\`） |"
+            echo "| 檔案 | 平台 | 用途 |"
+            echo "|------|------|------|"
+            echo "| \`s12ryt-mc-base-${VERSION}.jar\` | **Paper 1.21.4** | **平台 plugin**（放進伺服器 \`plugins/\` 目錄） |"
+            echo "| \`platform-fabric-${VERSION}.jar\` | Fabric 1.21.4 | 放進 \`mods/\`（需 fabric-api） |"
+            echo "| \`platform-neoforge-${VERSION}.jar\` | NeoForge 21.1.x | 放進 \`mods/\` |"
+            echo "| \`platform-forge-${VERSION}.jar\` | Forge 54.x (1.21.4) | 放進 \`mods/\` |"
+            echo "| \`hello-app-${VERSION}.jar\` | 通用 | 示範 App（放進平台資料目錄的 \`apps/\` 子目錄） |"
+            echo "| \`SHA256SUMS.txt\` | - | 校驗和（\`sha256sum -c SHA256SUMS.txt\`） |"
             echo ""
             echo "### 安裝"
             echo ""
-            echo "1. 把 \`s12ryt-mc-base-*.jar\` 放到 Paper 1.21.4 伺服器的 \`plugins/\` 目錄"
-            echo "2. **首次啟動前**，把 \`hello-app-*.jar\` 放到 \`plugins/s12ryt-mc-base/apps/\`（目錄需自行建立，或先啟動一次讓平台自動生成後再放入並重啟）"
+            echo "1. 依你的伺服器平台下載對應 jar：Paper 放 \`plugins/\`；Fabric/NeoForge/Forge 放 \`mods/\`（Fabric 需先裝 [fabric-api](https://modrinth.com/mod/fabric-api)）"
+            echo "2. **首次啟動前**，把 \`hello-app-*.jar\` 放到平台資料目錄的 \`apps/\` 子目錄（Paper：\`plugins/s12ryt-mc-base/apps/\`；Fabric/NeoForge/Forge：\`config/s12ryt-mc-base/apps/\`；目錄需自行建立，或先啟動一次讓平台自動生成後再放入並重啟）"
             echo "3. 啟動伺服器，控制台會印出首次生成的管理員密碼"
             echo "4. 開瀏覽器訪問 \`http://<伺服器IP>:8080/console/\` 登入"
             echo ""

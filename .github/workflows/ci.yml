@@ -36,6 +36,13 @@ jobs:
       - name: Build & run all unit tests
         run: ./gradlew build --no-daemon --stacktrace
 
+      - name: Build platform-forge (nested Gradle 8 build)
+        run: |
+          # ForgeGradle 6 不支援 Gradle 9，platform-forge 是嵌套獨立構建（Gradle 8.12 wrapper）
+          # 主構建已完成（上方 step 產出 shade jar），forge 構建 compileOnly 引用它
+          cd platform-forge
+          ./gradlew build --no-daemon --stacktrace
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -69,6 +76,9 @@ jobs:
           path: |
             platform-core/build/libs/*.jar
             apps/hello-app/build/libs/*.jar
+            platform-fabric/build/libs/*.jar
+            platform-neoforge/build/libs/*.jar
+            platform-forge/build/libs/*.jar
           retention-days: 14
 
   paper-smoke-test:

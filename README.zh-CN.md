@@ -6,7 +6,14 @@
 
 ---
 
-以 **Paper 1.21.4 plugin.jar** 形式存在的 **MC 多应用平台**——类 Docker 容器概念，让你把各种小项目（App）动态放进 Minecraft 服务器里运行，每个 App 都有自己独立的 Web 路由、SQLite 数据库、日志与调度器。
+以 **MC 多应用平台**形式存在的**类 Docker 容器系统**——支持 **Paper / Fabric / NeoForge / Forge**（均为 Minecraft 1.21.4），让你把各种小项目（App）动态放进 Minecraft 服务器里运行，每个 App 都有自己独立的 Web 路由、SQLite 数据库、日志与调度器。
+
+| 支持平台 | 版本 | 安装位置 |
+|---------|------|---------|
+| **Paper** | 1.21.4 | `plugins/` |
+| **Fabric** | 1.21.4（需 fabric-api） | `mods/` |
+| **NeoForge** | 21.1.x | `mods/` |
+| **Forge** | 54.x（1.21.4） | `mods/` |
 
 > 🎮 **零游戏内指令**：所有管理操作都通过 Web 控制台完成，不会污染游戏内的指令空间。
 
@@ -136,26 +143,32 @@ jar 丢进 `plugins/s12ryt-mc-base/apps/`，App 路由挂载在 `http://服务�
 ```bash
 ./gradlew build
 # 产出：
-#   platform-core/build/libs/s12ryt-mc-base-0.1.0.jar  ← plugin.jar（shade）
-#   apps/hello-app/build/libs/hello-app-0.1.0.jar      ← 示范 App
+#   platform-core/build/libs/s12ryt-mc-base-0.1.0.jar    ← Paper plugin.jar（shade）
+#   platform-fabric/build/libs/platform-fabric-0.1.0.jar  ← Fabric mod
+#   platform-neoforge/build/libs/platform-neoforge-0.1.0.jar ← NeoForge mod
+#   apps/hello-app/build/libs/hello-app-0.1.0.jar         ← 示范 App
+
+# Forge 版需单独构建（ForgeGradle 6 不支持 Gradle 9，为嵌套独立构建）：
+cd platform-forge && ./gradlew build
+# 产出：platform-forge/build/libs/platform-forge.jar ← Forge mod
 ```
 
 ## ✅ 质量保证
 
-- **263 个单元测试**全绿（JUnit 5，涵盖认证、容器、路由、存储、日志、调度、Web API）
+- **274 个单元测试**全绿（JUnit 5，涵盖认证、容器、路由、存储、日志、调度、Web API、ServerAdapter SPI）
 - **CI 全自动烟雾测试**：GitHub Actions 真实下载 Paper 1.21.4 启动服务器，验证 plugin 加载、App 启动、Web API 响应
 
 ## 📄 技术栈
 
 | 层 | 技术 |
 |----|------|
-| 基底 | Paper 1.21.4 / Java 21 |
+| 平台 | Paper 1.21.4 / Fabric 1.21.4 / NeoForge 21.1.x / Forge 54.x / Java 21 |
 | Web 后端 | Javalin 6.6.0 |
 | 前端 | Vue 3 + Vite |
 | 存储 | SQLite（sqlite-jdbc 3.53.2.1） |
 | JSON | Gson 2.11.0 |
 | 测试 | JUnit 5 |
-| 构建 | Gradle Kotlin DSL + Shadow |
+| 构建 | Gradle Kotlin DSL + Shadow / Loom / ModDevGradle / ForgeGradle 6 |
 
 ## 📄 授权
 
