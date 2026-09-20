@@ -14,9 +14,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
-import org.bukkit.Bukkit;
-import org.bukkit.Server;
-import org.bukkit.plugin.Plugin;
+import dev.s12ryt.mcapp.core.spi.DefaultServerAdapter;
+import dev.s12ryt.mcapp.core.spi.ServerAdapter;
 
 /**
  * App 專屬排程器實作。
@@ -41,27 +40,27 @@ public final class AppSchedulerImpl implements AppScheduler, AutoCloseable {
     private final ScheduledExecutorService executor;
     private final AtomicLong idCounter = new AtomicLong(0);
     private final Map<Long, ScheduledFuture<?>> tasks = new ConcurrentHashMap<>();
-    private final Supplier<Plugin> pluginSupplier;
+    private final Supplier<ServerAdapter> serverAdapterSupplier;
     private volatile boolean closed = false;
 
     /**
-     * 建構子（無 plugin 注入；測試用，runOnMainThread 在無 Bukkit 時直接同步執行）。
+     * 建構子（無 adapter 注入；測試用，runOnMainThread 直接同步執行）。
      *
      * @param appId App 識別碼（用於執行緒命名）
      */
     public AppSchedulerImpl(String appId) {
-        this(appId, () -> null);
+        this(appId, DefaultServerAdapter::new);
     }
 
     /**
-     * 建構子（注入 plugin supplier，用於 Bukkit 主線程跳回）。
+     * 建構子（注入 ServerAdapter supplier，用於主線程跳回）。
      *
-     * @param appId          App 識別碼（用於執行緒命名）
-     * @param pluginSupplier plugin 實例供應器（測試環境可回 null）
+     * @param appId                App 識別碼（用於執行緒命名）
+     * @param serverAdapterSupplier ServerAdapter 供應器（延遲取用）
      */
-    public AppSchedulerImpl(String appId, Supplier<Plugin> pluginSupplier) {
+    public AppSchedulerImpl(String appId, Supplier<ServerAdapter> serverAdapterSupplier) {
         this.appId = Objects.requireNonNull(appId, "appId");
-        this.pluginSupplier = Objects.requireNonNull(pluginSupplier, "pluginSupplier");
+        this.serverAdapterSupplier = Objects.requireNonNull(serverAdapterSupplier, "serverAdapterSupplier");
         this.executor = Executors.newScheduledThreadPool(
                 Math.max(1, Runtime.getRuntime().availableProcessors() / 2),
                 new AppThreadFactory(appId)
@@ -113,21 +112,7 @@ public final class AppSchedulerImpl implements AppScheduler, AutoCloseable {
     @Override
     public void runOnMainThread(Runnable task) {
         java.util.Objects.requireNonNull(task, "task");
-        Server server = Bukkit.getServer();
-        if (server != null) {
-            // Bukkit 環境：跳回主線程
-            org.bukkit.scheduler.BukkitScheduler scheduler = server.getScheduler();
-            Plugin plugin = pluginSupplier.get();
-            if (plugin != null) {
-                scheduler.runTask(plugin, task);
-            } else {
-                // plugin 未注入（測試環境 fallback）
-                task.run();
-            }
-        } else {
-            // 無 Bukkit 環境：直接同步執行
-            task.run();
-        }
+        serverAdapterSupplier.get().runOnMainThread(task);
     }
 
     @Override

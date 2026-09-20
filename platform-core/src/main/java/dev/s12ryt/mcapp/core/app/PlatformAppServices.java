@@ -8,8 +8,6 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
-import org.bukkit.plugin.Plugin;
-
 import dev.s12ryt.mcapp.api.AppConfig;
 import dev.s12ryt.mcapp.api.AppContext;
 import dev.s12ryt.mcapp.api.AppLogger;
@@ -21,6 +19,7 @@ import dev.s12ryt.mcapp.core.config.AppConfigImpl;
 import dev.s12ryt.mcapp.core.logger.AppLoggerImpl;
 import dev.s12ryt.mcapp.core.router.AppRouterRegistry;
 import dev.s12ryt.mcapp.core.scheduler.AppSchedulerImpl;
+import dev.s12ryt.mcapp.core.spi.ServerAdapter;
 import dev.s12ryt.mcapp.core.storage.AppStorageImpl;
 
 /**
@@ -44,11 +43,11 @@ public final class PlatformAppServices implements AppServices {
     private final Path appsDirectory;
     private final Path logDir;
     private final AppRouterRegistry routerRegistry;
-    private final Supplier<Plugin> pluginSupplier;
+    private final Supplier<ServerAdapter> serverAdapterSupplier;
     private final Map<String, AppContextImpl> contexts = new ConcurrentHashMap<>();
 
     /**
-     * 建構子（無 plugin 注入；測試用）。
+     * 建構子（無伺服器注入；測試用）。
      *
      * @param appsDirectory 平台 apps 根目錄（如 ./apps）
      * @param logDir        日誌目錄（如 ./logs）
@@ -59,19 +58,19 @@ public final class PlatformAppServices implements AppServices {
     }
 
     /**
-     * 建構子（注入 plugin supplier，用於 AppSchedulerImpl 主線程跳回）。
+     * 建構子（注入 ServerAdapter supplier，用於 AppSchedulerImpl 主線程跳回）。
      *
-     * @param appsDirectory  平台 apps 根目錄（如 ./apps）
-     * @param logDir         日誌目錄（如 ./logs）
-     * @param routerRegistry  路由註冊表
-     * @param pluginSupplier  plugin 實例供應器（測試環境可回 null）
+     * @param appsDirectory         平台 apps 根目錄（如 ./apps）
+     * @param logDir                日誌目錄（如 ./logs）
+     * @param routerRegistry        路由註冊表
+     * @param serverAdapterSupplier  ServerAdapter 供應器（測試環境可回 null）
      */
     public PlatformAppServices(Path appsDirectory, Path logDir, AppRouterRegistry routerRegistry,
-                                Supplier<Plugin> pluginSupplier) {
+                                Supplier<ServerAdapter> serverAdapterSupplier) {
         this.appsDirectory = Objects.requireNonNull(appsDirectory, "appsDirectory");
         this.logDir = Objects.requireNonNull(logDir, "logDir");
         this.routerRegistry = Objects.requireNonNull(routerRegistry, "routerRegistry");
-        this.pluginSupplier = Objects.requireNonNull(pluginSupplier, "pluginSupplier");
+        this.serverAdapterSupplier = Objects.requireNonNull(serverAdapterSupplier, "serverAdapterSupplier");
     }
 
     @Override
@@ -90,8 +89,8 @@ public final class PlatformAppServices implements AppServices {
         // 3. Logger — ring buffer + 檔案
         AppLoggerImpl logger = new AppLoggerImpl(appId, logDir);
 
-        // 4. Scheduler — 守護線程池（注入 plugin supplier）
-        AppSchedulerImpl scheduler = new AppSchedulerImpl(appId, pluginSupplier);
+        // 4. Scheduler — 守護線程池（注入 ServerAdapter supplier）
+        AppSchedulerImpl scheduler = new AppSchedulerImpl(appId, serverAdapterSupplier);
 
         // 5. dataDirectory — apps/{appId}/data/
         Path dataDirectory = appsDirectory.resolve(appId).resolve("data");

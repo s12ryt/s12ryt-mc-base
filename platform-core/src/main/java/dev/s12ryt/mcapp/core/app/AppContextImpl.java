@@ -4,7 +4,6 @@ import java.nio.file.Path;
 import java.util.Objects;
 
 import org.bukkit.Bukkit;
-import org.bukkit.Server;
 
 import dev.s12ryt.mcapp.api.AppConfig;
 import dev.s12ryt.mcapp.api.AppContext;
@@ -78,7 +77,7 @@ public final class AppContextImpl implements AppContext, AutoCloseable {
     }
 
     @Override
-    public Server getServer() {
+    public Object getServer() {
         return Bukkit.getServer();
     }
 

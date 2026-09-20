@@ -57,3 +57,25 @@
 ### 明確排除
 -   任何遊戲內指令（/xxx）。
 -   MySQL（SQLite 已足夠，之後可擴展）。
+
+## 追加需求（2026-09-20）：全 mod 平台支持
+
+> 用戶原話：「我不是說還要有mod版本嗎」→ 確認：「全mod平台支持」
+
+| 決策項 | 用戶選擇 |
+| --- | --- |
+| 加載器範圍 | 全平台支持：Paper（既有）+ Fabric + NeoForge + Forge |
+| 觸發方式 | tag v* 觸發正式 Release + workflow_dispatch 手動（沿用 Release workflow） |
+
+### 追加驗收標準（TDD 目標）
+1. **Phase A — ServerAdapter SPI 重構**：
+   - platform-core 抽出 `ServerAdapter` SPI（介面），隔離所有加載器特定 API（Bukkit Plugin/Fabric Server/NeoForge Server）。
+   - `DefaultServerAdapter`（無伺服器環境：runOnMainThread 直接執行）+ `BukkitServerAdapter`（Bukkit scheduler 跳主線程）。
+   - `AppSchedulerImpl`/`PlatformAppServices`/`PlatformBootstrap` 的 `Supplier<Plugin>` 改為 `Supplier<ServerAdapter>`。
+   - `S12rytPlugin` 傳入 `BukkitServerAdapter`；Paper 端行為完全不變（既有 263 測試全綠）。
+   - platform-api `AppContext.getServer()` 改回傳 `Object`（避免 Fabric/NeoForge 端 classpath 無 org.bukkit.Server 導致 NoClassDefFoundError）。
+2. **Phase B — platform-fabric**：Fabric Loom 構建；`DedicatedServerModInitializer` 進入點；ServerLifecycleEvents SERVER_STARTING/STOPPING 驅動 PlatformBootstrap；資料目錄 `config/s12ryt-mc-base/`；fabric.mod.json（server entrypoint；依賴 fabric-api）；WebServer 與 App 運行於伺服器執行緒外。
+3. **Phase C — platform-neoforge**：ModDevGradle 構建；`@Mod` 進入點；NeoForge.EVENT_BUS ServerStartingEvent/ServerStoppingEvent；資料目錄 `config/s12ryt-mc-base/`；neoforge.mods.toml。
+4. **Phase D — platform-forge**：ForgeGradle 與 Gradle 9 兼容性評估；不兼容時採獨立嵌套構建（自己的 Gradle 8 wrapper）；`@Mod` + MinecraftForge.EVENT_BUS；mods.toml。
+5. **Phase E — 構建與發佈**：CI 建置全部 4 個 jar；release.yml 上傳 4 個 jar 到 Release；三語 README 更新平台支持表。
+6. **App 兼容性約束**：App 透過 platform-api 編譯，不直接依賴加載器 API；`getServer()` 回傳 Object（App 自行 instanceof 轉型到目標平台類型）。

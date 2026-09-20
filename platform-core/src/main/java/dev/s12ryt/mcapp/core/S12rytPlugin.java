@@ -3,6 +3,7 @@ package dev.s12ryt.mcapp.core;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import dev.s12ryt.mcapp.core.bootstrap.PlatformBootstrap;
+import dev.s12ryt.mcapp.core.spi.BukkitServerAdapter;
 import dev.s12ryt.mcapp.core.web.WebServer;
 
 /**
@@ -24,8 +25,9 @@ public final class S12rytPlugin extends JavaPlugin {
         // 讓管理員可修改 web.port 等配置
         saveDefaultConfig();
 
-        // 建立並啟動平台
-        bootstrap = new PlatformBootstrap(getDataFolder().toPath(), () -> this);
+        // 建立並啟動平台（注入 BukkitServerAdapter：scheduler 主線程跳回用）
+        bootstrap = new PlatformBootstrap(getDataFolder().toPath(),
+                () -> new BukkitServerAdapter(() -> this));
         try {
             bootstrap.startup();
         } catch (IllegalStateException e) {

@@ -1,5 +1,67 @@
 # s12ryt-mc-base 操作記錄
 
+## 2026-09-20 — Release workflow（Run#1 驗證成功 + Release 已建立）
+
+### 用戶任務
+「應當在CI通過後跑一個構建到releases的workflow吧」→ 觸發策略用戶選擇：**tag 觸發 + 手動按鈕**（tag push 觸發正式 Release + workflow_dispatch 手動觸發）。
+
+### 完成
+1. **.github/workflows/release.yml**（commit 0da17ea「ci: 新增 Release workflow（tag v* 觸發 + 手動觸發，建置後建立 GitHub Release 並上傳 jar）」已 push）：
+   - 觸發：`push: tags: ['v*']` + `workflow_dispatch`
+   - permissions: contents: write
+   - job build-and-release（ubuntu-latest, timeout 20min）：Checkout → JDK21 temurin → Node22 → setup-gradle@v4 → npm ci（platform-core/web-console）→ `./gradlew build --no-daemon --stacktrace`（263 測試）→ Verify plugin jar contents（8 條目 + 零指令檢查，同 ci.yml）
+   - Determine version：tag 觸發時 VERSION=`${GITHUB_REF_NAME#v}`、release_tag=tag 名、prerelease=false；手動觸發時從根 build.gradle.kts 抓版本（`grep 'version = "' build.gradle.kts | head -n1 | sed 's/.*version = "\(.*\)".*/\1/'`）+ 短 SHA 組 tag=`v{version}-{sha}`、prerelease=true
+   - Collect artifacts：cp 兩個 jar + sha256sum > SHA256SUMS.txt
+   - Generate release notes（heredoc 中文安裝說明）→ softprops/action-gh-release@v2（generate_release_notes: true, fail_on_unmatched_files: true）
+   - Upload release-jars backup（14 days）
+2. **手動觸發驗證**（用戶同意）：API POST /actions/workflows/release.yml/dispatches（ref=main）→ Run#1（id 35494301990, event=workflow_dispatch）→ **conclusion=success**。
+3. **Release 已建立**：`s12ryt-mc-base v0.1.0-0da17ea`（tag v0.1.0-0da17ea，prerelease=true）→ https://github.com/s12ryt/s12ryt-mc-base/releases/tag/v0.1.0-0da17ea
+   - Assets：hello-app-0.1.0.jar（4.2 KB）、s12ryt-mc-base-0.1.0.jar（31,518.1 KB）、SHA256SUMS.txt
+
+### 技術筆記
+- workflow 檔案必須先 push 到 main 才能被 GitHub 註冊（API /actions/workflows 確認 state=active）。
+- workflow_dispatch 觸發：POST /repos/{owner}/{repo}/actions/workflows/{file}/dispatches，body `{"ref":"main"}`，成功回 204。
+- 版本抓取避免 grep -P（CI 環境差異），用 `grep + head + sed` 通用語法。
+- 正式發佈流程：`git tag v0.1.0 && git push origin v0.1.0` → tag 觸發 → 正式 Release（非 prerelease）。
+- 手動觸發產生的 prerelease（v0.1.0-0da17ea）可保留作驗證紀錄或刪除。
+
+## 2026-09-20 — GitHub repo + CI workflow（Run#7 全綠）
+
+### 用戶任務
+「先做一個github-workflow完整的mc各方面測試測試之後丟上github」
+
+### 完成
+- Repo：https://github.com/s12ryt/s12ryt-mc-base（public, id 1377933197）
+- git init + 身份 s12ryt / 102228212+s12ryt@users.noreply.github.com（非 sisyphus）
+- .gitignore 修正：web-console/dist → **/web-console/dist（子目錄 dist 誤 staged）
+- .github/workflows/ci.yml：雙 job（build-and-test + paper-smoke-test）
+- commits：714d322 初版 → 648cd80 workflow → ddea3bc gradlew 權限 → 9f35e96 npm ci → 5a1bf79 public/.gitkeep → dff72ce Paper v3 API → 95ce69e shadowJar EXCLUDE → 51e673e hello-app 放 apps 目錄
+
+### CI 修復歷程（7 runs）
+| Run | 根因 | 修復 |
+|-----|------|------|
+| 1 | gradlew git mode 100644（Linux 無執行權限） | git update-index --chmod=+x gradlew |
+| 2 | npm run build 無 node_modules | ci.yml 兩 job 加 npm ci（working-directory: platform-core/web-console） |
+| 3 | web-console/public 不存在（git 不追蹤空目錄） | 提交 public/.gitkeep |
+| 4 | PaperMC v2 API sunset（回 {"error":"sunset"}） | 改 v3 API fill.papermc.io/v3/projects/paper/versions/1.21.4/builds/latest → $.downloads["server:default"].url + sha256 校驗 |
+| 5 | PluginRemapper「Failed to remap plugin jar」 | shadowJar duplicatesStrategy INCLUDE→EXCLUDE + exclude META-INF 簽章/LICENSE/NOTICE/module-info；本地驗證 jar 9883 entries 0 重複 |
+| 6 | hello-app jar 放 plugins/ 被 Bukkit 當 plugin 載入失敗 | hello-app 改放 plugins/s12ryt-mc-base/apps/（PlatformBootstrap 掃描目錄 = getDataFolder().resolve("apps")） |
+| **7** | — | **全綠** ✅ |
+
+### Run#7 驗證（id 35492010161, commit 51e673e）
+- Build & Unit Tests job：npm ci + gradle build（263 測試）+ jar 內容驗證（8 必要 entry + plugin.yml 無 commands）+ artifacts 全 success
+- Paper 1.21.4 Smoke Test job：Download Paper（v3 API+sha256）→ server 啟動 "Done (" → plugin 載入/Enabling → 首次密碼生成 → Javalin 啟動 → hello-app "App started" → health API → console 200 → /apps/hello-app/ping pong → graceful stop 全 success
+
+### 技術筆記
+- Paper v3 API：fill.papermc.io/v3/projects/paper/versions/1.21.4/builds/latest（downloads["server:default"].url + checksums.sha256）
+- shadowJar mergeServiceFiles 後仍可能 duplicate entries（Kotlin stdlib 多模組）→ EXCLUDE + exclude 清單
+- Paper 啟動會對 plugin jar 跑 PluginRemapper，duplicate entries 直接失敗
+- 平台 App jar 不是 Bukkit plugin：放 plugins/{plugin-name}/apps/，且須在 server 首啟前就位（onEnable 時掃描）
+- CI log 抓取：git credential fill 拿 token → Invoke-WebRequest jobs/{id}/logs Bearer
+- commit 身份規則：拒絕 sisyphus-dev-ai / sisyphus@mengmota.com
+
+---
+
 ## 2026-09-20 — Ralph Loop：25 輪排查 + 修復（263 測試全綠）
 
 ### 用戶任務（Ralph Loop）

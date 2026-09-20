@@ -180,6 +180,20 @@ MC 多應用平台：以 Paper 1.21.4 plugin.jar + server.jar 形式存在的多
 - [x] 全回歸：XML 統計 TOTAL=263 FAILURES=0 ERRORS=0（251 基準 + P1 +7 + P12 +1 + P4/P5 +4 = 263）
 - [x] 針對性複查 8 修改點：無新 bug 引入
 
+### Phase 17：GitHub repo + CI workflow（Run#7 全綠）
+- [x] git init + 身份 s12ryt（非 sisyphus）+ .gitignore 修正（**/web-console/dist）
+- [x] .github/workflows/ci.yml：build-and-test job（JDK21 + Node22 + npm ci + gradle build + 263 測試 + jar 內容驗證 + artifacts）+ paper-smoke-test job（Paper v3 API 下載 + 伺服器啟動 + plugin/hello-app/web API 驗證）
+- [x] CI 修復 6 輪（Run#1-6）：gradlew 權限 / npm ci / public/.gitkeep / Paper v3 API（v2 sunset）/ shadowJar EXCLUDE（PluginRemapper duplicate entries）/ hello-app 放 plugins/s12ryt-mc-base/apps/
+- [x] **Run#7（id 35492010161, commit 51e673e）全綠**：Build & Unit Tests + Paper 1.21.4 Smoke Test 兩 job 全部步驟 success
+- [x] Repo：https://github.com/s12ryt/s12ryt-mc-base（public）
+
+### Phase 18：Release workflow（Run#1 驗證成功）
+- [x] .github/workflows/release.yml（commit 0da17ea）：tag v* 觸發正式 Release + workflow_dispatch 手動觸發（prerelease）
+- [x] 流程：npm ci → gradle build（263 測試）→ jar 內容驗證（8 條目 + 零指令）→ 版本判定（tag=tag 名 / 手動=v{version}-{sha}）→ SHA256SUMS.txt → softprops/action-gh-release@v2
+- [x] 手動觸發驗證（Run#1, id 35494301990）conclusion=success
+- [x] Release 已建立：v0.1.0-0da17ea（prerelease，3 assets：plugin jar 31.5MB / hello-app jar / SHA256SUMS.txt）
+- [x] 三語 README（ea7b2ba）+ 語言列修復（99195ea）
+
 ## 測試統計（Phase 16 後）
 | 模組 | 測試數 |
 |------|--------|
@@ -198,7 +212,9 @@ MC 多應用平台：以 Paper 1.21.4 plugin.jar + server.jar 形式存在的多
 | **總計** | **263** |
 
 ## 待辦任務
-無 — 所有核心功能已完成，263 測試全綠，Ralph Loop 排查與修復完成。
+無 — 所有核心功能已完成，263 測試全綠，GitHub CI 全綠（Run#7），Release workflow 驗證成功（v0.1.0-0da17ea prerelease 已建立）。
+
+正式發佈方式：`git tag v0.1.0 && git push origin v0.1.0` → tag 觸發 Release workflow → 正式 Release（非 prerelease）。
 
 ## 未來可能的擴展（非本次範圍）
 - [ ] 本地 Paper 伺服器煙霧測試（手動）

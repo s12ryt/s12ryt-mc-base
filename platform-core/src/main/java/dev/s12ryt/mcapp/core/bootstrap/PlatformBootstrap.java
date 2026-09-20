@@ -6,12 +6,11 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import org.bukkit.plugin.Plugin;
-
 import dev.s12ryt.mcapp.core.app.AppContainer;
 import dev.s12ryt.mcapp.core.app.PlatformAppServices;
 import dev.s12ryt.mcapp.core.auth.AuthManager;
 import dev.s12ryt.mcapp.core.router.AppRouterRegistry;
+import dev.s12ryt.mcapp.core.spi.ServerAdapter;
 
 /**
  * 平台生命週期管理器。
@@ -33,7 +32,7 @@ public final class PlatformBootstrap {
     private final Path dataDirectory;
     private final Path appsDirectory;
     private final Path logsDirectory;
-    private final Supplier<Plugin> pluginSupplier;
+    private final Supplier<ServerAdapter> serverAdapterSupplier;
 
     private AuthManager authManager;
     private AppRouterRegistry routerRegistry;
@@ -42,7 +41,7 @@ public final class PlatformBootstrap {
     private volatile boolean started = false;
 
     /**
-     * 建構子（無 plugin 注入；測試用）。
+     * 建構子（無 adapter 注入；測試用）。
      *
      * @param dataDirectory 平台根資料目錄（apps/、logs/、data/ 建立於此之下）
      */
@@ -51,14 +50,14 @@ public final class PlatformBootstrap {
     }
 
     /**
-     * 建構子（注入 plugin supplier）。
+     * 建構子（注入 ServerAdapter supplier，用於 AppSchedulerImpl 主線程跳回）。
      *
-     * @param dataDirectory  平台根資料目錄
-     * @param pluginSupplier  plugin 實例供應器（用於 AppSchedulerImpl 主線程跳回）
+     * @param dataDirectory         平台根資料目錄
+     * @param serverAdapterSupplier ServerAdapter 供應器（延遲取用；測試環境可回 null）
      */
-    public PlatformBootstrap(Path dataDirectory, Supplier<Plugin> pluginSupplier) {
+    public PlatformBootstrap(Path dataDirectory, Supplier<ServerAdapter> serverAdapterSupplier) {
         this.dataDirectory = Objects.requireNonNull(dataDirectory, "dataDirectory");
-        this.pluginSupplier = Objects.requireNonNull(pluginSupplier, "pluginSupplier");
+        this.serverAdapterSupplier = Objects.requireNonNull(serverAdapterSupplier, "serverAdapterSupplier");
         this.appsDirectory = dataDirectory.resolve("apps");
         this.logsDirectory = dataDirectory.resolve("logs");
     }
@@ -95,7 +94,7 @@ public final class PlatformBootstrap {
         routerRegistry = new AppRouterRegistry();
 
         // 初始化 App 服務
-        appServices = new PlatformAppServices(appsDirectory, logsDirectory, routerRegistry, pluginSupplier);
+        appServices = new PlatformAppServices(appsDirectory, logsDirectory, routerRegistry, serverAdapterSupplier);
 
         // 初始化 App 容器
         appContainer = new AppContainer(appsDirectory, appServices, getClass().getClassLoader());

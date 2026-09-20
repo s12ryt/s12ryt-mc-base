@@ -22,8 +22,15 @@ public interface AppContext {
     /** 定時任務排程器（非同步執行緒池；可跳回主線程執行）。 */
     AppScheduler scheduler();
 
-    /** Bukkit 伺服器實例（即 Bukkit.getServer()）。單元測試環境無伺服器時為 null。 */
-    org.bukkit.Server getServer();
+    /**
+     * 伺服器實例。
+     *
+     * <p>Paper 端為 org.bukkit.Server（即 Bukkit.getServer()）；Fabric/NeoForge/Forge 端為各自平台類型。
+     * 回傳型別刻意為 Object，避免 App jar 在未編譯對應平台 API 時載入此介面觸發 NoClassDefFoundError；
+     * App 應自行 instanceof 判斷後轉型。
+     * 單元測試環境無伺服器時為 null。
+     */
+    Object getServer();
 
     /** App 私有資料目錄（apps/{appId}/data/），已保證存在。 */
     java.nio.file.Path dataDirectory();
